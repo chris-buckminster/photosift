@@ -1,0 +1,1714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhotoSift</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Leaflet Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Marker Clustering -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #0a0b0f;
+            --bg-secondary: #12131a;
+            --bg-tertiary: #1a1b25;
+            --bg-elevated: #222333;
+            --bg-hover: #2a2b3d;
+            --border: #2a2c3e;
+            --border-subtle: #1e2030;
+            --text-primary: #e8e9f0;
+            --text-secondary: #8b8da3;
+            --text-muted: #5c5e73;
+            --accent: #6c8cff;
+            --accent-hover: #839dff;
+            --accent-glow: rgba(108, 140, 255, 0.15);
+            --accent-dim: rgba(108, 140, 255, 0.08);
+            --success: #4ade80;
+            --success-dim: rgba(74, 222, 128, 0.1);
+            --warning: #fbbf24;
+            --warning-dim: rgba(251, 191, 36, 0.1);
+            --danger: #f87171;
+            --danger-dim: rgba(248, 113, 113, 0.1);
+            --font-body: 'DM Sans', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius: 10px;
+            --radius-sm: 6px;
+            --radius-lg: 14px;
+        }
+
+        html, body, #root { height: 100%; }
+        body {
+            font-family: var(--font-body);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes progressStripe {
+            0% { background-position: 0 0; }
+            100% { background-position: 40px 0; }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .fade-in { animation: fadeIn 0.4s ease both; }
+        .slide-up { animation: slideUp 0.5s ease both; }
+
+        .app-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Header */
+        .app-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            height: 56px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            flex-shrink: 0;
+        }
+        .app-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 16px;
+            letter-spacing: -0.01em;
+        }
+        .app-logo svg { flex-shrink: 0; }
+        .app-logo .version {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-body);
+            font-size: 13px;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+        }
+        .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+        .btn-danger {
+            background: var(--danger-dim);
+            color: var(--danger);
+            border: 1px solid rgba(248,113,113,0.2);
+        }
+        .btn-danger:hover:not(:disabled) { background: rgba(248,113,113,0.2); }
+        .btn-success {
+            background: var(--success-dim);
+            color: var(--success);
+            border: 1px solid rgba(74,222,128,0.2);
+        }
+        .btn-success:hover:not(:disabled) { background: rgba(74,222,128,0.2); }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-lg { padding: 12px 24px; font-size: 15px; }
+        .btn-icon { padding: 8px; }
+
+        /* Main content */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .card-subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+        .stat-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius);
+            padding: 16px;
+            transition: border-color 0.2s;
+        }
+        .stat-card:hover { border-color: var(--border); }
+        .stat-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+        .stat-value {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1;
+        }
+        .stat-detail {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+            font-family: var(--font-mono);
+        }
+
+        /* Progress bar */
+        .progress-container {
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            height: 8px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 6px;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+        .progress-bar.active {
+            background-image: linear-gradient(
+                45deg,
+                rgba(255,255,255,0.1) 25%,
+                transparent 25%,
+                transparent 50%,
+                rgba(255,255,255,0.1) 50%,
+                rgba(255,255,255,0.1) 75%,
+                transparent 75%
+            );
+            background-size: 40px 40px;
+            animation: progressStripe 0.8s linear infinite;
+        }
+
+        /* Input */
+        .input-group { display: flex; gap: 8px; align-items: stretch; }
+        .text-input {
+            flex: 1;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .text-input:focus { border-color: var(--accent); }
+        .text-input::placeholder { color: var(--text-muted); }
+
+        /* Duplicate review */
+        .dup-group {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 16px;
+            animation: fadeIn 0.3s ease both;
+        }
+        .dup-group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .dup-group-badge {
+            font-size: 12px;
+            font-family: var(--font-mono);
+            color: var(--warning);
+            background: var(--warning-dim);
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+        .dup-photos {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .dup-photo {
+            position: relative;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .dup-photo:hover { border-color: var(--text-muted); }
+        .dup-photo.selected { border-color: var(--success); box-shadow: 0 0 0 1px var(--success); }
+        .dup-photo.removing { border-color: var(--danger); opacity: 0.5; }
+        .dup-photo img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            display: block;
+            background: var(--bg-tertiary);
+        }
+        .dup-photo-info {
+            padding: 8px 10px;
+            background: var(--bg-tertiary);
+            font-size: 11px;
+        }
+        .dup-photo-info .filename {
+            color: var(--text-primary);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dup-photo-info .meta {
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            margin-top: 2px;
+        }
+        .dup-photo-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .badge-keep { background: var(--success); color: #000; }
+        .badge-remove { background: var(--danger); color: #fff; }
+        .badge-recommended {
+            background: rgba(108,140,255,0.9);
+            color: #fff;
+        }
+
+        /* Welcome / empty state */
+        .welcome-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+        }
+        .welcome-inner { max-width: 520px; }
+        .welcome-icon {
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 24px;
+            background: var(--accent-dim);
+            border: 1px solid rgba(108,140,255,0.15);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .welcome-title {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 10px;
+        }
+        .welcome-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 28px;
+        }
+
+        /* Section divider */
+        .section-gap { height: 24px; }
+
+        /* Spinner */
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .toast {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 12px 16px;
+            font-size: 13px;
+            color: var(--text-primary);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            animation: slideUp 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 280px;
+        }
+        .toast.success { border-left: 3px solid var(--success); }
+        .toast.error { border-left: 3px solid var(--danger); }
+        .toast.info { border-left: 3px solid var(--accent); }
+
+        /* Nav tabs */
+        .nav-tabs {
+            display: flex;
+            gap: 2px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            padding: 3px;
+        }
+        .nav-tab {
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 500;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.15s;
+            font-family: var(--font-body);
+        }
+        .nav-tab:hover { color: var(--text-secondary); }
+        .nav-tab.active {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+        .nav-tab .count {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            background: var(--accent-dim);
+            color: var(--accent);
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-left: 6px;
+        }
+
+        /* ── Map overrides ──────────────────────── */
+        .map-container {
+            width: 100%;
+            height: calc(100vh - 120px);
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .leaflet-container {
+            background: var(--bg-secondary) !important;
+        }
+        /* Thumbnail marker on map */
+        .photo-marker {
+            border-radius: 6px;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.15);
+            overflow: hidden;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            cursor: pointer;
+            background: var(--bg-tertiary);
+        }
+        .photo-marker:hover {
+            transform: scale(1.15);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.6), 0 0 0 2px var(--accent);
+            z-index: 9999 !important;
+        }
+        .photo-marker img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        /* Cluster thumbnail with count badge */
+        .cluster-marker {
+            position: relative;
+            border-radius: 8px;
+            border: 2.5px solid #fff;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.15);
+            overflow: hidden;
+            cursor: pointer;
+            background: var(--bg-tertiary);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .cluster-marker:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.6), 0 0 0 2px var(--accent);
+        }
+        .cluster-marker img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .cluster-marker .cluster-count {
+            position: absolute;
+            bottom: -1px;
+            right: -1px;
+            background: var(--accent);
+            color: #fff;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 11px;
+            padding: 1px 6px 2px;
+            border-radius: 8px 0 6px 0;
+            line-height: 1.3;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            min-width: 22px;
+            text-align: center;
+        }
+        .cluster-marker .cluster-stack {
+            position: absolute;
+            top: -3px;
+            left: -3px;
+            right: -3px;
+            bottom: -3px;
+            border-radius: 10px;
+            border: 2px solid rgba(255,255,255,0.3);
+            pointer-events: none;
+        }
+        /* Photo popup */
+        .leaflet-popup-content-wrapper {
+            background: var(--bg-elevated) !important;
+            color: var(--text-primary) !important;
+            border-radius: var(--radius) !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+        }
+        .leaflet-popup-tip {
+            background: var(--bg-elevated) !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: none !important;
+        }
+        .leaflet-popup-close-button {
+            color: var(--text-secondary) !important;
+        }
+        .leaflet-popup-close-button:hover {
+            color: var(--text-primary) !important;
+        }
+        .photo-popup {
+            min-width: 220px;
+        }
+        .photo-popup img {
+            width: 100%;
+            border-radius: var(--radius-sm);
+            margin-bottom: 8px;
+            display: block;
+        }
+        .photo-popup .popup-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .photo-popup .popup-meta {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            margin-top: 2px;
+        }
+        /* Map stats bar */
+        .map-stats {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .map-stats .stat-highlight {
+            color: var(--accent);
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+        /* Hide default cluster styles */
+        .marker-cluster {
+            background: none !important;
+            border: none !important;
+        }
+        .marker-cluster div {
+            background: none !important;
+        }
+    </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ── Utility ──────────────────────────────────────
+const API = '';
+const fmt = {
+    bytes: (b) => {
+        if (!b) return '0 B';
+        const u = ['B','KB','MB','GB','TB'];
+        const i = Math.floor(Math.log(b) / Math.log(1024));
+        return (b / Math.pow(1024, i)).toFixed(i ? 1 : 0) + ' ' + u[i];
+    },
+    number: (n) => n != null ? n.toLocaleString() : '—',
+    date: (d) => {
+        if (!d) return 'No date';
+        try {
+            const dt = new Date(d);
+            return dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        } catch { return d; }
+    },
+    dateRange: (a, b) => {
+        if (!a || !b) return 'Unknown';
+        return `${fmt.date(a)} → ${fmt.date(b)}`;
+    },
+    percent: (a, b) => b > 0 ? Math.round((a / b) * 100) : 0,
+};
+
+async function api(path, opts = {}) {
+    const res = await fetch(API + path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `API error ${res.status}`);
+    }
+    return res.json();
+}
+
+// ── Icons (inline SVG) ──────────────────────────
+const Icons = {
+    Logo: () => (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="2" width="20" height="20" rx="5" fill="var(--accent)" opacity="0.15"/>
+            <rect x="2" y="2" width="20" height="20" rx="5" stroke="var(--accent)" strokeWidth="1.5"/>
+            <path d="M8 15l3-4 2.5 3 3.5-5" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="9" cy="9" r="1.5" fill="var(--accent)"/>
+        </svg>
+    ),
+    Folder: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+    ),
+    Search: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    ),
+    Copy: () => (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    ),
+    Trash: () => (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    ),
+    Check: () => (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+    ),
+    RefreshCw: () => (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    ),
+    Image: () => (
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+    ),
+    AlertCircle: () => (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><circle cx="12" cy="16" r="0.5" fill="currentColor"/></svg>
+    ),
+};
+
+// ── Toast System ─────────────────────────────────
+function useToast() {
+    const [toasts, setToasts] = useState([]);
+    const add = useCallback((message, type = 'info') => {
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+    }, []);
+    return { toasts, addToast: add };
+}
+
+function ToastContainer({ toasts }) {
+    return (
+        <div className="toast-container">
+            {toasts.map(t => (
+                <div key={t.id} className={`toast ${t.type}`}>
+                    {t.type === 'success' && <Icons.Check />}
+                    {t.type === 'error' && <Icons.AlertCircle />}
+                    {t.message}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// ── Welcome Screen ───────────────────────────────
+function WelcomeScreen({ onStartScan }) {
+    const [path, setPath] = useState('');
+    const [discovering, setDiscovering] = useState(false);
+    const [previewCount, setPreviewCount] = useState(null);
+
+    const handleDiscover = async () => {
+        if (!path.trim()) return;
+        setDiscovering(true);
+        try {
+            const data = await api('/api/scan/discover', {
+                method: 'POST',
+                body: { path: path.trim() },
+            });
+            setPreviewCount(data.photo_count);
+        } catch (e) {
+            setPreviewCount(-1);
+        } finally {
+            setDiscovering(false);
+        }
+    };
+
+    return (
+        <div className="welcome-container fade-in">
+            <div className="welcome-inner">
+                <div className="welcome-icon">
+                    <Icons.Image />
+                </div>
+                <h1 className="welcome-title">Welcome to PhotoSift</h1>
+                <p className="welcome-desc">
+                    Point me at your photo folder and I'll scan everything, find duplicates,
+                    and help you organize 20 years of memories. Nothing leaves your computer.
+                </p>
+
+                <div className="input-group" style={{marginBottom: 12}}>
+                    <input
+                        className="text-input"
+                        type="text"
+                        placeholder="C:\Users\You\Pictures"
+                        value={path}
+                        onChange={e => { setPath(e.target.value); setPreviewCount(null); }}
+                        onKeyDown={e => e.key === 'Enter' && handleDiscover()}
+                    />
+                    <button
+                        className="btn btn-secondary"
+                        onClick={handleDiscover}
+                        disabled={!path.trim() || discovering}
+                    >
+                        {discovering ? <span className="spinner"/> : <Icons.Search />}
+                        Preview
+                    </button>
+                </div>
+
+                {previewCount !== null && previewCount >= 0 && (
+                    <div className="card fade-in" style={{textAlign: 'left', marginBottom: 16}}>
+                        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                            <div>
+                                <div style={{fontSize:13, color:'var(--text-secondary)'}}>Photos found</div>
+                                <div style={{fontSize:28, fontWeight:700, color: previewCount > 0 ? 'var(--success)' : 'var(--text-muted)'}}>
+                                    {fmt.number(previewCount)}
+                                </div>
+                            </div>
+                            {previewCount > 0 && (
+                                <button className="btn btn-primary btn-lg" onClick={() => onStartScan(path.trim())}>
+                                    Start Scanning
+                                </button>
+                            )}
+                        </div>
+                        {previewCount === 0 && (
+                            <p style={{fontSize:13, color:'var(--text-muted)', marginTop:8}}>
+                                No photos found in this directory. Try a different path.
+                            </p>
+                        )}
+                    </div>
+                )}
+                {previewCount === -1 && (
+                    <div className="card fade-in" style={{borderColor:'rgba(248,113,113,0.3)'}}>
+                        <p style={{fontSize:13, color:'var(--danger)'}}>
+                            Could not access that directory. Make sure the path exists and PhotoSift has permission to read it.
+                        </p>
+                    </div>
+                )}
+
+                <p style={{fontSize:12, color:'var(--text-muted)', marginTop: 16}}>
+                    Supported formats: JPG, PNG, GIF, TIFF, WebP, HEIC, RAW (CR2, NEF, ARW, DNG)
+                </p>
+            </div>
+        </div>
+    );
+}
+
+// ── Scan Progress Screen ─────────────────────────
+function ScanProgressScreen({ onComplete }) {
+    const [progress, setProgress] = useState(null);
+
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            try {
+                const data = await api('/api/scan/progress');
+                setProgress(data);
+                if (!data.active && data.phase === 'complete') {
+                    clearInterval(interval);
+                    setTimeout(onComplete, 800);
+                }
+            } catch (e) {
+                console.error('Progress poll error:', e);
+            }
+        }, 500);
+        return () => clearInterval(interval);
+    }, [onComplete]);
+
+    if (!progress) return <div className="welcome-container"><div className="spinner" style={{width:32,height:32,borderWidth:3}}/></div>;
+
+    const pct = progress.total_files > 0 ? fmt.percent(progress.processed, progress.total_files) : 0;
+    const phaseLabels = {
+        'discovering': 'Discovering photos...',
+        'indexing': 'Scanning & indexing photos...',
+        'duplicates_loading': 'Loading photos for duplicate scan...',
+        'duplicates_precomputing': 'Preparing hash data...',
+        'duplicates_comparing': 'Comparing photo hashes...',
+        'duplicates_near_duplicate_scan': 'Finding near-duplicate photos...',
+        'duplicates_merging_groups': 'Merging duplicate groups...',
+        'duplicates_saving': 'Saving duplicate groups...',
+        'duplicates_complete': 'Duplicate scan complete!',
+        'complete': 'All done!',
+        'error': 'Scan encountered an error',
+    };
+
+    return (
+        <div className="welcome-container">
+            <div className="welcome-inner slide-up" style={{maxWidth: 480}}>
+                <div className="welcome-icon">
+                    {progress.phase === 'complete' || progress.phase === 'duplicates_complete'
+                        ? <Icons.Check />
+                        : <div className="spinner" style={{width:28,height:28,borderWidth:3}} />
+                    }
+                </div>
+                <h2 className="welcome-title">
+                    {phaseLabels[progress.phase] || progress.phase}
+                </h2>
+
+                {progress.total_files > 0 && (
+                    <>
+                        <div className="progress-container">
+                            <div
+                                className={`progress-bar ${progress.active ? 'active' : ''}`}
+                                style={{width: `${Math.max(pct, 2)}%`}}
+                            />
+                        </div>
+                        <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'var(--text-secondary)'}}>
+                            <span>{fmt.number(progress.processed)} / {fmt.number(progress.total_files)}</span>
+                            <span>{pct}%</span>
+                        </div>
+                    </>
+                )}
+
+                <div className="stats-grid" style={{marginTop: 24}}>
+                    <div className="stat-card">
+                        <div className="stat-label">Indexed</div>
+                        <div className="stat-value" style={{color:'var(--success)'}}>{fmt.number(progress.indexed)}</div>
+                    </div>
+                    <div className="stat-card">
+                        <div className="stat-label">Errors</div>
+                        <div className="stat-value" style={{color: progress.errors > 0 ? 'var(--warning)' : 'var(--text-muted)'}}>{progress.errors}</div>
+                    </div>
+                    {progress.duplicate_scan && (
+                        <div className="stat-card">
+                            <div className="stat-label">Dup Groups</div>
+                            <div className="stat-value" style={{color:'var(--accent)'}}>{progress.groups_found}</div>
+                        </div>
+                    )}
+                </div>
+
+                {progress.current_file && (
+                    <p style={{fontSize:12, fontFamily:'var(--font-mono)', color:'var(--text-muted)', marginTop:16, wordBreak:'break-all'}}>
+                        {progress.current_file}
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ── Dashboard Screen ─────────────────────────────
+function DashboardScreen({ stats, onViewDuplicates, onOrganize, onMap, onNewScan, addToast }) {
+    if (!stats) return null;
+
+    const dupeCount = stats.pending_duplicate_groups || 0;
+    const savingsEstimate = null; // We'll compute this from dup data
+
+    return (
+        <div className="fade-in" style={{maxWidth: 900, margin: '0 auto'}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24}}>
+                <div>
+                    <h2 style={{fontSize:20, fontWeight:700, letterSpacing:'-0.02em'}}>Library Overview</h2>
+                    <p style={{fontSize:13, color:'var(--text-secondary)', marginTop:4}}>
+                        {fmt.dateRange(stats.earliest_date, stats.latest_date)}
+                    </p>
+                </div>
+                <div style={{display:'flex', gap:8}}>
+                    <button className="btn btn-secondary btn-sm" onClick={onNewScan}>
+                        <Icons.Folder /> Scan Another Folder
+                    </button>
+                </div>
+            </div>
+
+            <div className="stats-grid" style={{marginBottom: 24}}>
+                <div className="stat-card">
+                    <div className="stat-label">Total Photos</div>
+                    <div className="stat-value">{fmt.number(stats.total_photos)}</div>
+                    <div className="stat-detail">{fmt.bytes(stats.total_size_bytes)}</div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-label">With Date Info</div>
+                    <div className="stat-value" style={{color:'var(--success)'}}>{fmt.number(stats.with_date)}</div>
+                    <div className="stat-detail">{fmt.percent(stats.with_date, stats.total_photos)}% of library</div>
+                </div>
+                <div className="stat-card" style={{cursor: stats.with_gps > 0 ? 'pointer' : 'default', borderColor: stats.with_gps > 0 ? 'rgba(108,140,255,0.3)' : undefined}}
+                     onClick={() => stats.with_gps > 0 && onMap()}>
+                    <div className="stat-label">With GPS</div>
+                    <div className="stat-value" style={{color:'var(--accent)'}}>{fmt.number(stats.with_gps)}</div>
+                    {stats.with_gps > 0
+                        ? <div className="stat-detail" style={{color:'var(--accent)'}}>View on map →</div>
+                        : <div className="stat-detail">{fmt.percent(stats.with_gps, stats.total_photos)}% of library</div>
+                    }
+                </div>
+                <div className="stat-card" style={{cursor: dupeCount > 0 ? 'pointer' : 'default', borderColor: dupeCount > 0 ? 'rgba(251,191,36,0.3)' : undefined}}
+                     onClick={() => dupeCount > 0 && onViewDuplicates()}>
+                    <div className="stat-label">Duplicate Groups</div>
+                    <div className="stat-value" style={{color: dupeCount > 0 ? 'var(--warning)' : 'var(--text-muted)'}}>{fmt.number(dupeCount)}</div>
+                    {dupeCount > 0 && <div className="stat-detail" style={{color:'var(--warning)'}}>Click to review →</div>}
+                </div>
+                <div className="stat-card" style={{cursor:'pointer', borderColor:'rgba(108,140,255,0.3)'}}
+                     onClick={onOrganize}>
+                    <div className="stat-label">Organize</div>
+                    <div className="stat-value" style={{fontSize:18, color:'var(--accent)'}}>
+                        <Icons.Folder />
+                    </div>
+                    <div className="stat-detail" style={{color:'var(--accent)'}}>Sort into Year/Month →</div>
+                </div>
+            </div>
+
+            {/* File type breakdown */}
+            {stats.extensions && Object.keys(stats.extensions).length > 0 && (
+                <div className="card">
+                    <div className="card-title" style={{marginBottom:16}}>File Types</div>
+                    <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
+                        {Object.entries(stats.extensions).map(([ext, count]) => (
+                            <div key={ext} style={{
+                                background:'var(--bg-tertiary)',
+                                border:'1px solid var(--border-subtle)',
+                                borderRadius:'var(--radius-sm)',
+                                padding:'6px 12px',
+                                fontSize:12,
+                            }}>
+                                <span style={{color:'var(--accent)', fontFamily:'var(--font-mono)', fontWeight:500}}>{ext}</span>
+                                <span style={{color:'var(--text-muted)', marginLeft:8}}>{fmt.number(count)}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Duplicate Review Screen ──────────────────────
+function DuplicateReviewScreen({ onBack, addToast }) {
+    const [groups, setGroups] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [selections, setSelections] = useState({});
+    const [resolving, setResolving] = useState(false);
+
+    const loadGroups = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await api('/api/duplicates?status=pending');
+            setGroups(data.groups);
+            // Default selections: pick the recommended one
+            const sel = {};
+            data.groups.forEach(g => {
+                const rec = g.members.find(m => m.is_recommended_keep);
+                sel[g.group.id] = new Set(rec ? [rec.photo_id] : [g.members[0].photo_id]);
+            });
+            setSelections(sel);
+        } catch (e) {
+            addToast('Failed to load duplicates: ' + e.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    }, [addToast]);
+
+    useEffect(() => { loadGroups(); }, [loadGroups]);
+
+    const toggleSelection = (groupId, photoId) => {
+        setSelections(prev => {
+            const s = new Set(prev[groupId] || []);
+            if (s.has(photoId)) {
+                if (s.size > 1) s.delete(photoId); // Must keep at least one
+            } else {
+                s.add(photoId);
+            }
+            return { ...prev, [groupId]: s };
+        });
+    };
+
+    const resolveGroup = async (groupId) => {
+        setResolving(true);
+        try {
+            const keepIds = Array.from(selections[groupId] || []);
+            await api('/api/duplicates/resolve', {
+                method: 'POST',
+                body: { actions: [{ group_id: groupId, keep_ids: keepIds, action: 'trash' }] },
+            });
+            setGroups(prev => prev.filter(g => g.group.id !== groupId));
+            addToast('Duplicate group resolved!', 'success');
+        } catch (e) {
+            addToast('Error: ' + e.message, 'error');
+        } finally {
+            setResolving(false);
+        }
+    };
+
+    const resolveAllRecommended = async () => {
+        setResolving(true);
+        try {
+            const result = await api('/api/duplicates/resolve-all', { method: 'POST' });
+            addToast(`Resolved ${result.processed} groups. ${result.trashed} duplicates moved to trash.`, 'success');
+            setGroups([]);
+        } catch (e) {
+            addToast('Error: ' + e.message, 'error');
+        } finally {
+            setResolving(false);
+        }
+    };
+
+    if (loading) {
+        return <div className="welcome-container"><div className="spinner" style={{width:32,height:32,borderWidth:3}}/></div>;
+    }
+
+    return (
+        <div className="fade-in" style={{maxWidth: 1000, margin: '0 auto'}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24}}>
+                <div>
+                    <button className="btn btn-secondary btn-sm" onClick={onBack} style={{marginBottom:8}}>
+                        ← Back to Dashboard
+                    </button>
+                    <h2 style={{fontSize:20, fontWeight:700}}>Duplicate Review</h2>
+                    <p style={{fontSize:13, color:'var(--text-secondary)', marginTop:4}}>
+                        {groups.length > 0
+                            ? `${groups.length} groups to review. Click photos to select which to keep (green = keep, dimmed = remove).`
+                            : 'No duplicate groups to review. Your library is clean!'
+                        }
+                    </p>
+                </div>
+                {groups.length > 0 && (
+                    <div style={{display:'flex', gap:8}}>
+                        <button className="btn btn-success" onClick={resolveAllRecommended} disabled={resolving}>
+                            <Icons.Check /> Accept All Recommendations
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {groups.length === 0 && (
+                <div className="card" style={{textAlign:'center', padding:48}}>
+                    <div style={{fontSize:48, marginBottom:16}}>✓</div>
+                    <h3 style={{fontSize:18, fontWeight:600, marginBottom:8}}>All Clean</h3>
+                    <p style={{color:'var(--text-secondary)', fontSize:14}}>No pending duplicates to review.</p>
+                </div>
+            )}
+
+            {groups.map((g, idx) => {
+                const groupSel = selections[g.group.id] || new Set();
+                return (
+                    <div key={g.group.id} className="dup-group" style={{animationDelay: `${idx * 0.05}s`}}>
+                        <div className="dup-group-header">
+                            <div>
+                                <span style={{fontSize:14, fontWeight:600}}>Group #{g.group.id}</span>
+                                <span className="dup-group-badge" style={{marginLeft:10}}>
+                                    {g.members.length} copies
+                                </span>
+                            </div>
+                            <button className="btn btn-primary btn-sm" onClick={() => resolveGroup(g.group.id)} disabled={resolving}>
+                                <Icons.Check /> Keep Selected, Trash Rest
+                            </button>
+                        </div>
+                        <div className="dup-photos">
+                            {g.members.map(m => {
+                                const isKeep = groupSel.has(m.photo_id);
+                                return (
+                                    <div
+                                        key={m.photo_id}
+                                        className={`dup-photo ${isKeep ? 'selected' : 'removing'}`}
+                                        onClick={() => toggleSelection(g.group.id, m.photo_id)}
+                                    >
+                                        <img
+                                            src={`${API}/api/photo/thumbnail/${m.photo_id}?size=300`}
+                                            alt={m.file_name}
+                                            loading="lazy"
+                                        />
+                                        {m.is_recommended_keep && (
+                                            <span className="dup-photo-badge badge-recommended">Best</span>
+                                        )}
+                                        {isKeep
+                                            ? <span className="dup-photo-badge badge-keep">Keep</span>
+                                            : <span className="dup-photo-badge badge-remove">Remove</span>
+                                        }
+                                        <div className="dup-photo-info">
+                                            <div className="filename" title={m.file_name}>{m.file_name}</div>
+                                            <div className="meta">
+                                                {m.width && m.height ? `${m.width}×${m.height}` : '?'} · {fmt.bytes(m.file_size)}
+                                            </div>
+                                            <div className="meta">{fmt.date(m.date_taken)}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+// ── Organize Screen ──────────────────────────────
+function OrganizeScreen({ onBack, addToast }) {
+    const [preview, setPreview] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [outputDir, setOutputDir] = useState('');
+    const [mode, setMode] = useState('copy');
+    const [executing, setExecuting] = useState(false);
+    const [progress, setProgress] = useState(null);
+    const [result, setResult] = useState(null);
+
+    useEffect(() => {
+        (async () => {
+            setLoading(true);
+            try {
+                const data = await api('/api/organize/preview');
+                setPreview(data);
+            } catch (e) {
+                addToast('Failed to load preview: ' + e.message, 'error');
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, [addToast]);
+
+    // Poll progress when executing
+    useEffect(() => {
+        if (!executing) return;
+        const interval = setInterval(async () => {
+            try {
+                const data = await api('/api/organize/progress');
+                setProgress(data);
+                if (!data.active && data.phase === 'complete') {
+                    clearInterval(interval);
+                    setExecuting(false);
+                    addToast('Photos organized successfully!', 'success');
+                } else if (data.phase === 'error') {
+                    clearInterval(interval);
+                    setExecuting(false);
+                    addToast('Organize encountered an error', 'error');
+                }
+            } catch (e) {
+                console.error('Progress poll error:', e);
+            }
+        }, 500);
+        return () => clearInterval(interval);
+    }, [executing, addToast]);
+
+    const handleExecute = async () => {
+        if (!outputDir.trim()) {
+            addToast('Please enter an output directory', 'error');
+            return;
+        }
+        setExecuting(true);
+        setResult(null);
+        try {
+            await api('/api/organize/execute', {
+                method: 'POST',
+                body: { output_dir: outputDir.trim(), mode },
+            });
+        } catch (e) {
+            setExecuting(false);
+            addToast('Failed to start: ' + e.message, 'error');
+        }
+    };
+
+    if (loading) {
+        return <div className="welcome-container"><div className="spinner" style={{width:32,height:32,borderWidth:3}}/></div>;
+    }
+
+    const pct = progress && progress.total > 0 ? fmt.percent(progress.processed, progress.total) : 0;
+
+    return (
+        <div className="fade-in" style={{maxWidth: 900, margin: '0 auto'}}>
+            <div style={{marginBottom:24}}>
+                <button className="btn btn-secondary btn-sm" onClick={onBack} style={{marginBottom:8}}>
+                    ← Back to Dashboard
+                </button>
+                <h2 style={{fontSize:20, fontWeight:700}}>Organize Photos</h2>
+                <p style={{fontSize:13, color:'var(--text-secondary)', marginTop:4}}>
+                    Sort your photos into Year / Month folders based on date metadata.
+                </p>
+            </div>
+
+            {/* Preview summary */}
+            {preview && !executing && !progress?.phase?.includes('complete') && (
+                <div className="card" style={{marginBottom: 20}}>
+                    <div className="card-title" style={{marginBottom:16}}>Preview</div>
+                    <div className="stats-grid" style={{marginBottom:20}}>
+                        <div className="stat-card">
+                            <div className="stat-label">Photos to Organize</div>
+                            <div className="stat-value">{fmt.number(preview.total_photos)}</div>
+                            <div className="stat-detail">{fmt.bytes(preview.total_size)}</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-label">Folders to Create</div>
+                            <div className="stat-value" style={{color:'var(--accent)'}}>{fmt.number(preview.folder_count)}</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-label">Undated Photos</div>
+                            <div className="stat-value" style={{color: preview.undated_count > 0 ? 'var(--warning)' : 'var(--success)'}}>
+                                {fmt.number(preview.undated_count)}
+                            </div>
+                            {preview.undated_count > 0 && <div className="stat-detail">Will go to Undated/</div>}
+                        </div>
+                    </div>
+
+                    {/* Folder tree */}
+                    <div style={{marginBottom:20}}>
+                        <div style={{fontSize:13, fontWeight:600, marginBottom:10, color:'var(--text-secondary)'}}>
+                            Folder Structure Preview
+                        </div>
+                        <div style={{
+                            background:'var(--bg-tertiary)',
+                            border:'1px solid var(--border-subtle)',
+                            borderRadius:'var(--radius)',
+                            padding:16,
+                            maxHeight:360,
+                            overflowY:'auto',
+                        }}>
+                            {preview.folders.map((folder, idx) => (
+                                <div key={folder.path} style={{
+                                    display:'flex',
+                                    alignItems:'center',
+                                    justifyContent:'space-between',
+                                    padding:'8px 12px',
+                                    borderRadius:'var(--radius-sm)',
+                                    background: idx % 2 === 0 ? 'transparent' : 'var(--bg-primary)',
+                                    marginBottom:2,
+                                }}>
+                                    <div style={{display:'flex', alignItems:'center', gap:10, flex:1, minWidth:0}}>
+                                        <span style={{color:'var(--accent)', fontSize:14}}>
+                                            {folder.path === 'Undated' ? '?' : '📁'}
+                                        </span>
+                                        <span style={{
+                                            fontFamily:'var(--font-mono)',
+                                            fontSize:13,
+                                            color: folder.path === 'Undated' ? 'var(--warning)' : 'var(--text-primary)',
+                                            whiteSpace:'nowrap',
+                                        }}>
+                                            {folder.path}
+                                        </span>
+                                    </div>
+                                    <div style={{display:'flex', alignItems:'center', gap:16, flexShrink:0}}>
+                                        <span style={{fontSize:12, color:'var(--text-secondary)', fontFamily:'var(--font-mono)'}}>
+                                            {fmt.number(folder.count)} {folder.count === 1 ? 'photo' : 'photos'}
+                                        </span>
+                                        <span style={{fontSize:11, color:'var(--text-muted)', fontFamily:'var(--font-mono)'}}>
+                                            {fmt.bytes(folder.size)}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Configuration */}
+                    <div style={{
+                        background:'var(--bg-tertiary)',
+                        border:'1px solid var(--border-subtle)',
+                        borderRadius:'var(--radius)',
+                        padding:20,
+                    }}>
+                        <div style={{marginBottom:16}}>
+                            <label style={{fontSize:13, fontWeight:500, display:'block', marginBottom:6}}>
+                                Output Directory
+                            </label>
+                            <input
+                                className="text-input"
+                                type="text"
+                                placeholder="C:\Users\You\Pictures\Organized"
+                                value={outputDir}
+                                onChange={e => setOutputDir(e.target.value)}
+                                style={{width:'100%'}}
+                            />
+                            <p style={{fontSize:11, color:'var(--text-muted)', marginTop:4}}>
+                                Year/Month folders will be created inside this directory.
+                            </p>
+                        </div>
+
+                        <div style={{marginBottom:20}}>
+                            <label style={{fontSize:13, fontWeight:500, display:'block', marginBottom:8}}>
+                                Mode
+                            </label>
+                            <div style={{display:'flex', gap:8}}>
+                                <button
+                                    className={`btn ${mode === 'copy' ? 'btn-primary' : 'btn-secondary'}`}
+                                    onClick={() => setMode('copy')}
+                                    style={{flex:1, justifyContent:'center'}}
+                                >
+                                    <Icons.Copy /> Copy
+                                    <span style={{fontSize:11, opacity:0.7, marginLeft:4}}>(safe, keeps originals)</span>
+                                </button>
+                                <button
+                                    className={`btn ${mode === 'move' ? 'btn-primary' : 'btn-secondary'}`}
+                                    onClick={() => setMode('move')}
+                                    style={{flex:1, justifyContent:'center'}}
+                                >
+                                    <Icons.Folder /> Move
+                                    <span style={{fontSize:11, opacity:0.7, marginLeft:4}}>(saves disk space)</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <button
+                            className="btn btn-success btn-lg"
+                            onClick={handleExecute}
+                            disabled={!outputDir.trim()}
+                            style={{width:'100%', justifyContent:'center'}}
+                        >
+                            <Icons.Check /> {mode === 'copy' ? 'Copy' : 'Move'} {fmt.number(preview.total_photos)} Photos into Organized Folders
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Progress */}
+            {executing && progress && (
+                <div className="card slide-up" style={{textAlign:'center', padding:40}}>
+                    <div className="spinner" style={{width:32, height:32, borderWidth:3, margin:'0 auto 20px'}} />
+                    <h3 style={{fontSize:16, fontWeight:600, marginBottom:8}}>
+                        Organizing photos...
+                    </h3>
+                    <div className="progress-container" style={{maxWidth:400, margin:'0 auto'}}>
+                        <div className="progress-bar active" style={{width:`${Math.max(pct, 2)}%`}} />
+                    </div>
+                    <div style={{fontSize:13, color:'var(--text-secondary)', marginTop:8}}>
+                        {fmt.number(progress.processed)} / {fmt.number(progress.total)} — {pct}%
+                    </div>
+                    {progress.current_file && (
+                        <p style={{fontSize:12, fontFamily:'var(--font-mono)', color:'var(--text-muted)', marginTop:8}}>
+                            {progress.current_file}
+                        </p>
+                    )}
+                    <div className="stats-grid" style={{marginTop:20, maxWidth:400, margin:'20px auto 0'}}>
+                        <div className="stat-card">
+                            <div className="stat-label">{mode === 'copy' ? 'Copied' : 'Moved'}</div>
+                            <div className="stat-value" style={{fontSize:20, color:'var(--success)'}}>
+                                {fmt.number(mode === 'copy' ? progress.copied : progress.moved)}
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-label">Errors</div>
+                            <div className="stat-value" style={{fontSize:20, color: progress.errors > 0 ? 'var(--danger)' : 'var(--text-muted)'}}>
+                                {progress.errors}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Complete */}
+            {!executing && progress && progress.phase === 'complete' && (
+                <div className="card slide-up" style={{textAlign:'center', padding:48}}>
+                    <div style={{fontSize:48, marginBottom:16}}>✓</div>
+                    <h3 style={{fontSize:18, fontWeight:600, marginBottom:8}}>Photos Organized!</h3>
+                    <p style={{color:'var(--text-secondary)', fontSize:14, marginBottom:20}}>
+                        {mode === 'copy'
+                            ? `${fmt.number(progress.copied)} photos copied into organized folders.`
+                            : `${fmt.number(progress.moved)} photos moved into organized folders.`
+                        }
+                        {progress.skipped > 0 && ` ${fmt.number(progress.skipped)} skipped.`}
+                        {progress.errors > 0 && ` ${progress.errors} errors.`}
+                    </p>
+                    <p style={{fontSize:13, fontFamily:'var(--font-mono)', color:'var(--text-muted)', marginBottom:24}}>
+                        {outputDir}
+                    </p>
+                    <button className="btn btn-primary" onClick={onBack}>
+                        Back to Dashboard
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Map Screen ───────────────────────────────────
+function MapScreen({ addToast }) {
+    const mapRef = useRef(null);
+    const mapInstanceRef = useRef(null);
+    const clusterRef = useRef(null);
+    const [gpsData, setGpsData] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    // Load GPS data
+    useEffect(() => {
+        (async () => {
+            try {
+                const data = await api('/api/photos/gps');
+                setGpsData(data);
+            } catch (e) {
+                addToast('Failed to load GPS data: ' + e.message, 'error');
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, [addToast]);
+
+    // Initialize map once data is loaded
+    useEffect(() => {
+        if (!gpsData || gpsData.photos.length === 0 || !mapRef.current) return;
+        if (mapInstanceRef.current) return;
+
+        const L = window.L;
+        if (!L) return;
+
+        // Create map
+        const map = L.map(mapRef.current, {
+            zoomControl: true,
+            attributionControl: true,
+        });
+        mapInstanceRef.current = map;
+
+        // Dark tile layer
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            maxZoom: 19,
+        }).addTo(map);
+
+        // Helper: create a thumbnail marker icon
+        function photoIcon(photoId, size) {
+            const s = size || 44;
+            return L.divIcon({
+                html: `<div class="photo-marker" style="width:${s}px;height:${s}px;">
+                    <img src="${API}/api/photo/thumbnail/${photoId}?size=${s * 2}" loading="lazy" />
+                </div>`,
+                className: '',
+                iconSize: [s, s],
+                iconAnchor: [s/2, s/2],
+                popupAnchor: [0, -s/2 - 4],
+            });
+        }
+
+        // Create marker cluster group with thumbnail cluster icons
+        const cluster = L.markerClusterGroup({
+            chunkedLoading: true,
+            chunkInterval: 100,
+            chunkDelay: 10,
+            maxClusterRadius: 55,
+            spiderfyOnMaxZoom: true,
+            showCoverageOnHover: false,
+            disableClusteringAtZoom: 17,
+            animate: true,
+            iconCreateFunction: function(c) {
+                const count = c.getChildCount();
+                const children = c.getAllChildMarkers();
+                // Pick the first marker's photo ID for the cluster thumbnail
+                const repId = children[0]?.options?.photoId || '';
+
+                // Scale cluster size based on count
+                let size = 52;
+                if (count > 100) size = 68;
+                else if (count > 20) size = 60;
+
+                // Format count display
+                let countStr = count.toString();
+                if (count >= 1000) countStr = (count/1000).toFixed(1) + 'k';
+
+                return L.divIcon({
+                    html: `<div class="cluster-marker" style="width:${size}px;height:${size}px;">
+                        <div class="cluster-stack"></div>
+                        <img src="${API}/api/photo/thumbnail/${repId}?size=${size * 2}" loading="lazy" />
+                        <span class="cluster-count">${countStr}</span>
+                    </div>`,
+                    className: 'marker-cluster',
+                    iconSize: [size + 6, size + 6],
+                    iconAnchor: [(size + 6)/2, (size + 6)/2],
+                });
+            },
+        });
+        clusterRef.current = cluster;
+
+        // Add markers — each one is a thumbnail
+        const markers = gpsData.photos.map(photo => {
+            const marker = L.marker([photo.gps_lat, photo.gps_lon], {
+                icon: photoIcon(photo.id, 40),
+                photoId: photo.id,
+            });
+
+            // Popup with larger thumbnail + details
+            marker.bindPopup(() => {
+                const date = photo.date_taken ? new Date(photo.date_taken).toLocaleDateString('en-US', {
+                    year: 'numeric', month: 'short', day: 'numeric'
+                }) : 'No date';
+                const dims = photo.width && photo.height ? `${photo.width}×${photo.height}` : '';
+                const size = photo.file_size ? (photo.file_size / (1024*1024)).toFixed(1) + ' MB' : '';
+                const meta = [dims, size].filter(Boolean).join(' · ');
+
+                return `<div class="photo-popup">
+                    <img src="${API}/api/photo/thumbnail/${photo.id}?size=300" alt="${photo.file_name}" />
+                    <div class="popup-name" title="${photo.file_name}">${photo.file_name}</div>
+                    <div class="popup-meta">${date}</div>
+                    ${meta ? `<div class="popup-meta">${meta}</div>` : ''}
+                    <div class="popup-meta" style="color:var(--text-muted)">${photo.gps_lat.toFixed(5)}, ${photo.gps_lon.toFixed(5)}</div>
+                </div>`;
+            }, { maxWidth: 280, minWidth: 220 });
+
+            return marker;
+        });
+
+        cluster.addLayers(markers);
+        map.addLayer(cluster);
+
+        // Fit bounds to show all markers
+        const bounds = cluster.getBounds();
+        if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+        }
+
+        return () => {
+            map.remove();
+            mapInstanceRef.current = null;
+            clusterRef.current = null;
+        };
+    }, [gpsData]);
+
+    if (loading) {
+        return <div className="welcome-container"><div className="spinner" style={{width:32,height:32,borderWidth:3}}/></div>;
+    }
+
+    if (!gpsData || gpsData.total_with_gps === 0) {
+        return (
+            <div className="welcome-container fade-in">
+                <div style={{textAlign:'center'}}>
+                    <div style={{fontSize:48, marginBottom:16, opacity:0.4}}>🗺️</div>
+                    <h2 style={{fontSize:20, fontWeight:600, marginBottom:8}}>No GPS Data</h2>
+                    <p style={{color:'var(--text-secondary)', fontSize:14}}>
+                        None of your {fmt.number(gpsData?.total_photos || 0)} photos have GPS coordinates embedded.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    const pct = fmt.percent(gpsData.total_with_gps, gpsData.total_photos);
+
+    return (
+        <div className="fade-in" style={{height:'100%', display:'flex', flexDirection:'column'}}>
+            <div className="map-stats">
+                <div>
+                    <span className="stat-highlight">{fmt.number(gpsData.total_with_gps)}</span> photos with GPS
+                    <span style={{margin:'0 8px', color:'var(--text-muted)'}}>·</span>
+                    {pct}% of {fmt.number(gpsData.total_photos)} total
+                </div>
+                <div style={{fontSize:12, color:'var(--text-muted)'}}>
+                    Click a thumbnail to zoom in · Click a photo to see details
+                </div>
+            </div>
+            <div className="map-container" ref={mapRef} />
+        </div>
+    );
+}
+
+// ── Main App ─────────────────────────────────────
+function App() {
+    const [screen, setScreen] = useState('loading');
+    const [stats, setStats] = useState(null);
+    const { toasts, addToast } = useToast();
+
+    const loadStats = useCallback(async () => {
+        try {
+            const data = await api('/api/stats');
+            setStats(data);
+            if (data.total_photos > 0) {
+                setScreen('dashboard');
+            } else {
+                setScreen('welcome');
+            }
+        } catch {
+            setScreen('welcome');
+        }
+    }, []);
+
+    useEffect(() => { loadStats(); }, [loadStats]);
+
+    const handleStartScan = async (path) => {
+        try {
+            await api('/api/scan/start', { method: 'POST', body: { path, threshold: 6 } });
+            setScreen('scanning');
+        } catch (e) {
+            addToast('Scan failed to start: ' + e.message, 'error');
+        }
+    };
+
+    const handleScanComplete = () => {
+        addToast('Scan complete!', 'success');
+        loadStats();
+    };
+
+    const handleNewScan = () => setScreen('welcome');
+
+    return (
+        <div className="app-layout">
+            <header className="app-header">
+                <div className="app-logo">
+                    <Icons.Logo />
+                    <span>PhotoSift</span>
+                    <span className="version">v0.5</span>
+                </div>
+                <div className="header-actions">
+                    {['dashboard', 'duplicates', 'organize', 'map'].includes(screen) && (
+                        <div className="nav-tabs">
+                            <button
+                                className={`nav-tab ${screen === 'dashboard' ? 'active' : ''}`}
+                                onClick={() => { setScreen('dashboard'); loadStats(); }}
+                            >
+                                Dashboard
+                            </button>
+                            <button
+                                className={`nav-tab ${screen === 'duplicates' ? 'active' : ''}`}
+                                onClick={() => setScreen('duplicates')}
+                            >
+                                Duplicates
+                                {stats?.pending_duplicate_groups > 0 && (
+                                    <span className="count">{stats.pending_duplicate_groups}</span>
+                                )}
+                            </button>
+                            <button
+                                className={`nav-tab ${screen === 'organize' ? 'active' : ''}`}
+                                onClick={() => setScreen('organize')}
+                            >
+                                Organize
+                            </button>
+                            <button
+                                className={`nav-tab ${screen === 'map' ? 'active' : ''}`}
+                                onClick={() => setScreen('map')}
+                            >
+                                Map
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </header>
+
+            <main className="main-content">
+                {screen === 'loading' && (
+                    <div className="welcome-container"><div className="spinner" style={{width:32,height:32,borderWidth:3}}/></div>
+                )}
+                {screen === 'welcome' && <WelcomeScreen onStartScan={handleStartScan} />}
+                {screen === 'scanning' && <ScanProgressScreen onComplete={handleScanComplete} />}
+                {screen === 'dashboard' && (
+                    <DashboardScreen
+                        stats={stats}
+                        onViewDuplicates={() => setScreen('duplicates')}
+                        onOrganize={() => setScreen('organize')}
+                        onMap={() => setScreen('map')}
+                        onNewScan={handleNewScan}
+                        addToast={addToast}
+                    />
+                )}
+                {screen === 'duplicates' && (
+                    <DuplicateReviewScreen
+                        onBack={() => { setScreen('dashboard'); loadStats(); }}
+                        addToast={addToast}
+                    />
+                )}
+                {screen === 'organize' && (
+                    <OrganizeScreen
+                        onBack={() => { setScreen('dashboard'); loadStats(); }}
+                        addToast={addToast}
+                    />
+                )}
+                {screen === 'map' && (
+                    <MapScreen addToast={addToast} />
+                )}
+            </main>
+
+            <ToastContainer toasts={toasts} />
+        </div>
+    );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
